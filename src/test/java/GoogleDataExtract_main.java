@@ -9,11 +9,13 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-public class Google {
+public class GoogleDataExtract_main {
 
-    public static void main(String[] args) throws InterruptedException, IOException {
+    public static void main(String[] args) throws InterruptedException {
         // Setup ChromeDriver using WebDriverManager
         WebDriverManager.chromedriver().browserVersion("129.0.0.0").setup();
 
@@ -29,12 +31,11 @@ public class Google {
 
         WebElement search = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("(//input[@id='searchboxinput'])[1]")));
         search.click();
-        search.sendKeys("tattoo shop near Atlanta, GA, USA");
-//        search.sendKeys("tattoo shop near New York, NY, USA");
+        search.sendKeys("jewellery stores near South Extension");
         search.sendKeys(Keys.ENTER);
 
         // Wait for search results to load
-        Thread.sleep(5000);
+        Thread.sleep(2000);
 
         // Create Excel workbook and sheet
         Workbook workbook = new XSSFWorkbook();
@@ -50,9 +51,11 @@ public class Google {
         int rowIndex = 1;  // Row index for the Excel sheet
         int processedTabs = 0;  // Keep track of how many tabs we've processed
 
+        // Create a Set to store unique titles
+        Set<String> uniqueTitles = new HashSet<>();
+
         // Open the file output stream once, to append data as it's fetched
         try (FileOutputStream fileOut = new FileOutputStream("/Users/ankitkumar/Downloads/Outputsheet.xlsx")) {
-
             // Loop to handle dynamic loading of tabs and fetching their details
             while (processedTabs < 200) {  // Adjust this limit as needed
                 // Get the list of tabs visible at the moment
@@ -70,14 +73,17 @@ public class Google {
 
                             // Scroll to the tab before clicking
                             ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", tab);
-                            wait.until(ExpectedConditions.elementToBeClickable(tab)).click();
+                            Thread.sleep(1000);  // Ensure the scroll completes
 
-                            Thread.sleep(2000);  // Adjust wait time based on network speed
+                            // Try to click using JavaScript to avoid ElementClickInterceptedException
+                            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", tab);
+
+                            Thread.sleep(1000);  // Adjust wait time based on network speed
 
                             // Fetch title and location
                             String title = getTextByClassName(driver, ".DUwDvf.lfPIob");  // Title
                             String location = getTextByClassName1(driver, "(//div[contains(@class,'rogA2c')])[1]");
-                            String rating = getTextByClassName1(driver,"(//div[contains(@class,'F7nice')])[1]");
+                            String rating = getTextByClassName1(driver, "(//div[contains(@class,'F7nice')])[1]");
 
                             // Check if the website element exists
                             String website;
@@ -97,25 +103,28 @@ public class Google {
                                 phoneText = "N/A";  // If phone number element doesn't exist
                             }
 
-                            // Print data to the console (for debugging)
-                            System.out.println("Title: " + title);
-                            System.out.println("Rating: " + rating);
-                            System.out.println("Location: " + location);
-                            System.out.println("Website: " + website);
-                            System.out.println("Phone: " + phoneText);
-                            System.out.println("----------------------------");
+                            // Check if the title already exists in the Set
+                            if (!uniqueTitles.contains(title)) {
+                                // Add title to the Set to avoid duplicates
+                                uniqueTitles.add(title);
 
-                            // Write data to the Excel sheet immediately after fetching it
-                            Row row = sheet.createRow(rowIndex++);
-                            row.createCell(0).setCellValue(title);
-                            row.createCell(1).setCellValue(location);
-                            row.createCell(2).setCellValue(website);
-                            row.createCell(3).setCellValue(phoneText);
+                                // Print data to the console (for debugging)
+                                System.out.println("Title: " + title);
+                                System.out.println("Rating: " + rating);
+                                System.out.println("Location: " + location);
+                                System.out.println("Website: " + website);
+                                System.out.println("Phone: " + phoneText);
+                                System.out.println("----------------------------");
 
-                            // Write the current data to the file to ensure nothing is lost
-                            workbook.write(fileOut);
+                                // Write data to the Excel sheet immediately after fetching it
+                                Row row = sheet.createRow(rowIndex++);
+                                row.createCell(0).setCellValue(title);
+                                row.createCell(1).setCellValue(location);
+                                row.createCell(2).setCellValue(website);
+                                row.createCell(3).setCellValue(phoneText);
+                            }
 
-                            Thread.sleep(2000);  // Wait for 2 seconds after fetching data
+                            Thread.sleep(1000);  // Wait for 1 second after fetching data
 
                             // Mark success if no exception occurs
                             success = true;
@@ -134,15 +143,27 @@ public class Google {
                 processedTabs = tabs.size();
 
                 // Scroll to load more results
-                WebElement lastTab = driver.findElements(By.className("hfpxzc")).get(tabs.size() - 1);
-                ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", lastTab);
-                Thread.sleep(3000);  // Wait for new results to load
+                if (tabs.size() > 0) {
+                    WebElement lastTab = driver.findElements(By.className("hfpxzc")).get(tabs.size() - 1);
+                    ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", lastTab);
+                    Thread.sleep(2000);  // Wait for new results to load
+                }
             }
-        }
 
-        // Close the workbook and the browser
-        workbook.close();
-        driver.quit();
+            // Write the workbook to the file after processing all the data
+            workbook.write(fileOut);
+            System.out.println("Data successfully written to Outputsheet.xlsx");
+        } catch (IOException e) {
+            System.err.println("Error writing to Excel file: " + e.getMessage());
+        } finally {
+            // Close the workbook and the browser
+            try {
+                workbook.close();
+            } catch (IOException e) {
+                System.err.println("Error closing workbook: " + e.getMessage());
+            }
+            driver.quit();
+        }
     }
 
     // Helper method to get text by class name (CSS selector)
@@ -165,8 +186,3 @@ public class Google {
         }
     }
 }
-
-
-
-
-
